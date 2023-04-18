@@ -1,0 +1,67 @@
+set hive.support.concurrency = true;
+set hive.txn.manager = org.apache.hadoop.hive.ql.lockmgr.DbTxnManager;
+
+CREATE TABLE IF NOT EXISTS questions_so (id int, OwnerUserId int, CreationDate string, ClosedDate string, Score int, Title string, Body string) 
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+Stored as TEXTFILE;
+
+CREATE TABLE IF NOT EXISTS questions (id int, OwnerUserId int, CreationDate string, ClosedDate string, Score int, Title string, Body string) 
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+Stored as ORC
+TBLPROPERTIES ('transactional'='true');
+
+==========================================================================
+
+CREATE TABLE IF NOT EXISTS tags_so (id int, tag string) 
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+Stored as TEXTFILE;
+
+CREATE TABLE IF NOT EXISTS tags (id int, tag string) 
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+Stored as ORC
+TBLPROPERTIES ('transactional'='true');
+
+===========================================================================
+
+LOAD DATA INPATH 'gs://dataproc-staging-europe-central2-736023337346-o5fajpz2/notebooks/jupyter/datasets/Tags.csv' INTO TABLE tags_so;
+LOAD DATA INPATH 'gs://dataproc-staging-europe-central2-736023337346-o5fajpz2/notebooks/jupyter/datasets/Questions.csv' INTO TABLE questions_so;
+
+======================
+
+to copy the cleaned data into csv
+hadoop fs -cat hdfs://cluster-b517-m/user/hive/warehouse/questions > gs://dataproc-staging-europe-north1-736023337346-jjnicc3c/notebooks/jupyter/Tags.csv
+
+======================
+
+#####Loading into ORC tables
+
+INSERT OVERWRITE TABLE tags SELECT * FROM tags_so;
+INSERT OVERWRITE TABLE questions SELECT * FROM questions_so;
+
+==============================
+
+#####Cleaning tags
+
+UPDATE tags SET id = -1 where id is NULL;
+
+====================================
+
+#####Cleaning questions table
+
+1. UPDATE questions SET score = 9999 where score is NULL;
+2. UPDATE questions SET id = 99999999 where id is NULL;
+2. UPDATE questions SET OwnerUserId = -1 where OwnerUserId is NULL;
+
+
+select count(*) from questions_so where id is NULL OR score is NULL OR OwnerUserId is NULL;
+
+
+
+1. update questions set title = regexp_replace(title, "[^a-zA-Z0-9 \#+.]", "");
+2. update questions set title = LOWER(title);
+3. update questions set title = replace(title, "myself|our|ours|ourselves|you|your|yours|yourself|yourselves|him|his|himself|she|her|hers|herself|itself|they|them|their|theirs|themselves|what|which|who|whom|this|that|these|those|was|were|been|being|have|has|had|having|does|did|doing|the|and|but|because|until|while|for|with|about|against|between|into|through|during|before|after|above|below|from|down|off|over|under|again|further|then|once|here|there|when|where|why|how|any|both|each|few|more|most|other|some|such|nor|not|only|own|same|than|too|very|can|will|just|don|should|now", "");
+
